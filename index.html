@@ -4,221 +4,315 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>副業管理ツール</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+  body { font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; background: #f0f2f5; color: #333; }
 
   header {
     background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;
-    padding: 20px 32px;
-    font-size: 1.4rem;
-    font-weight: bold;
-    letter-spacing: 0.05em;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
+  header h1 { font-size: 1.3rem; font-weight: bold; }
+  header .tagline { font-size: 0.8rem; opacity: 0.8; margin-top: 2px; }
 
-  .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+  .container { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+
+  /* タブ */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: white; padding: 6px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); width: fit-content; }
+  .tab { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.88rem; font-weight: 600; background: transparent; color: #888; transition: all 0.2s; }
+  .tab.active { background: #667eea; color: white; }
+
+  /* セクション */
+  .section { display: none; }
+  .section.active { display: block; }
 
   /* サマリーカード */
   .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
   .card {
-    flex: 1; min-width: 180px;
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    text-align: center;
+    flex: 1; min-width: 160px;
+    background: white; border-radius: 12px; padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07); text-align: center;
   }
-  .card .label { font-size: 0.8rem; color: #888; margin-bottom: 8px; }
-  .card .amount { font-size: 1.6rem; font-weight: bold; }
+  .card .label { font-size: 0.75rem; color: #999; margin-bottom: 6px; }
+  .card .amount { font-size: 1.5rem; font-weight: bold; }
+  .card .sub { font-size: 0.72rem; color: #bbb; margin-top: 4px; }
   .card.income .amount { color: #4caf50; }
   .card.expense .amount { color: #f44336; }
   .card.profit .amount { color: #667eea; }
+  .card.rate .amount { color: #ff9800; }
+
+  /* グラフエリア */
+  .charts { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .chart-box {
+    flex: 1; min-width: 280px;
+    background: white; border-radius: 12px; padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .chart-box h3 { font-size: 0.85rem; color: #888; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .chart-box h3 .year-ctrl { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .chart-box h3 select { padding: 3px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8rem; }
 
   /* フォーム */
   .form-section {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    margin-bottom: 24px;
+    background: white; border-radius: 12px; padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 24px;
   }
-  .form-section h2 { font-size: 1rem; margin-bottom: 16px; color: #555; }
-  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-  .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 130px; }
-  .form-group label { font-size: 0.75rem; color: #888; }
+  .form-section h2 { font-size: 0.9rem; color: #666; margin-bottom: 14px; font-weight: 600; }
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+  .form-group label { font-size: 0.72rem; color: #999; }
   .form-group input, .form-group select {
-    padding: 9px 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    outline: none;
-    transition: border-color 0.2s;
+    padding: 9px 11px; border: 1px solid #e0e0e0; border-radius: 8px;
+    font-size: 0.88rem; outline: none; transition: border-color 0.2s;
   }
   .form-group input:focus, .form-group select:focus { border-color: #667eea; }
 
-  .btn {
-    padding: 9px 24px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: bold;
-    transition: opacity 0.2s;
-  }
-  .btn:hover { opacity: 0.85; }
+  .btn { padding: 9px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.88rem; font-weight: 600; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.82; }
   .btn-primary { background: #667eea; color: white; }
-  .btn-danger  { background: #f44336; color: white; padding: 6px 14px; font-size: 0.8rem; }
+  .btn-ghost   { background: #eee; color: #666; }
+  .btn-danger  { background: #fce8e8; color: #f44336; padding: 5px 12px; font-size: 0.78rem; border: none; border-radius: 6px; cursor: pointer; }
 
   /* フィルター */
-  .filter-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-  .filter-row label { font-size: 0.8rem; color: #888; }
-  .filter-row select, .filter-row input {
-    padding: 7px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.85rem; outline: none;
-  }
+  .filter-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-row label { font-size: 0.78rem; color: #999; }
+  .filter-row input, .filter-row select { padding: 7px 11px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 0.84rem; outline: none; }
 
   /* テーブル */
-  .table-section {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  }
-  .table-section h2 { font-size: 1rem; margin-bottom: 16px; color: #555; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-  th { background: #f7f8fc; padding: 10px 12px; text-align: left; color: #888; font-weight: 600; border-bottom: 2px solid #eee; }
-  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+  .table-section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+  .table-section h2 { font-size: 0.9rem; color: #666; margin-bottom: 14px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th { background: #f7f8fc; padding: 9px 11px; text-align: left; color: #aaa; font-weight: 600; border-bottom: 2px solid #eee; font-size: 0.78rem; }
+  td { padding: 10px 11px; border-bottom: 1px solid #f3f3f3; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: #fafbff; }
-  .badge {
-    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold;
-  }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: bold; }
   .badge.income  { background: #e8f5e9; color: #4caf50; }
   .badge.expense { background: #fce8e8; color: #f44336; }
-  .empty { text-align: center; color: #bbb; padding: 40px; font-size: 0.9rem; }
+  .empty { text-align: center; color: #ccc; padding: 48px; font-size: 0.88rem; }
+
+  /* 年間サマリーテーブル */
+  .monthly-table th, .monthly-table td { text-align: right; }
+  .monthly-table th:first-child, .monthly-table td:first-child { text-align: left; }
+  .profit-pos { color: #4caf50; font-weight: bold; }
+  .profit-neg { color: #f44336; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<header>💼 副業管理ツール</header>
+<header>
+  <div>
+    <h1>💼 副業管理ツール</h1>
+    <div class="tagline">収支・案件・税務をひとまとめに管理</div>
+  </div>
+</header>
 
 <div class="container">
 
-  <!-- サマリー -->
-  <div class="summary">
-    <div class="card income">
-      <div class="label" id="summary-month-label">今月の収入</div>
-      <div class="amount" id="total-income">¥0</div>
-    </div>
-    <div class="card expense">
-      <div class="label">今月の支出</div>
-      <div class="amount" id="total-expense">¥0</div>
-    </div>
-    <div class="card profit">
-      <div class="label">今月の純利益</div>
-      <div class="amount" id="total-profit">¥0</div>
-    </div>
+  <!-- タブ -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('dashboard')">ダッシュボード</button>
+    <button class="tab" onclick="switchTab('register')">登録・一覧</button>
+    <button class="tab" onclick="switchTab('annual')">年間レポート</button>
   </div>
 
-  <!-- 登録フォーム -->
-  <div class="form-section">
-    <h2>取引を登録</h2>
-    <div class="form-row">
-      <div class="form-group">
-        <label>種別</label>
-        <select id="f-type">
-          <option value="income">収入</option>
-          <option value="expense">支出</option>
-        </select>
+  <!-- ======== ダッシュボード ======== -->
+  <div id="tab-dashboard" class="section active">
+
+    <div class="summary">
+      <div class="card income">
+        <div class="label" id="lbl-month">今月の収入</div>
+        <div class="amount" id="m-income">¥0</div>
+        <div class="sub" id="m-income-sub"></div>
       </div>
-      <div class="form-group">
-        <label>日付</label>
-        <input type="date" id="f-date">
+      <div class="card expense">
+        <div class="label">今月の支出</div>
+        <div class="amount" id="m-expense">¥0</div>
       </div>
-      <div class="form-group" style="flex:2">
-        <label>内容・案件名</label>
-        <input type="text" id="f-desc" placeholder="例: Webデザイン案件A">
+      <div class="card profit">
+        <div class="label">今月の純利益</div>
+        <div class="amount" id="m-profit">¥0</div>
       </div>
-      <div class="form-group">
-        <label>金額（円）</label>
-        <input type="number" id="f-amount" placeholder="50000" min="0">
+      <div class="card rate">
+        <div class="label">利益率</div>
+        <div class="amount" id="m-rate">-%</div>
+        <div class="sub">収入に対する純利益</div>
       </div>
-      <div class="form-group">
-        <label>カテゴリ</label>
-        <select id="f-category">
-          <option>案件収入</option>
-          <option>コンサル</option>
-          <option>通信費</option>
-          <option>機材・ソフト</option>
-          <option>交通費</option>
-          <option>その他</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" onclick="addEntry()">追加</button>
     </div>
+
+    <div class="charts">
+      <!-- 月別棒グラフ -->
+      <div class="chart-box" style="flex:2">
+        <h3>
+          月別収支（棒グラフ）
+          <span class="year-ctrl">
+            <select id="bar-year" onchange="renderCharts()"></select>
+          </span>
+        </h3>
+        <canvas id="barChart" height="180"></canvas>
+      </div>
+      <!-- 経費割合ドーナツ -->
+      <div class="chart-box" style="flex:1">
+        <h3>経費カテゴリ内訳</h3>
+        <canvas id="pieChart" height="180"></canvas>
+        <div id="pie-empty" class="empty" style="display:none;padding:20px;font-size:0.8rem">支出データなし</div>
+      </div>
+    </div>
+
   </div>
 
-  <!-- 一覧 -->
-  <div class="table-section">
-    <h2>取引一覧</h2>
-    <div class="filter-row">
-      <label>月で絞込:</label>
-      <input type="month" id="filter-month">
-      <button class="btn btn-primary" style="padding:7px 16px;font-size:0.82rem" onclick="renderTable()">絞込</button>
-      <button class="btn" style="background:#eee;padding:7px 16px;font-size:0.82rem" onclick="clearFilter()">全表示</button>
+  <!-- ======== 登録・一覧 ======== -->
+  <div id="tab-register" class="section">
+
+    <div class="form-section">
+      <h2>取引を登録</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>種別</label>
+          <select id="f-type">
+            <option value="income">収入</option>
+            <option value="expense">支出</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>日付</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="form-group" style="flex:2">
+          <label>内容・案件名</label>
+          <input type="text" id="f-desc" placeholder="例: Webデザイン案件A">
+        </div>
+        <div class="form-group">
+          <label>金額（円）</label>
+          <input type="number" id="f-amount" placeholder="50000" min="0">
+        </div>
+        <div class="form-group">
+          <label>カテゴリ</label>
+          <select id="f-category">
+            <option>案件収入</option>
+            <option>コンサル</option>
+            <option>通信費</option>
+            <option>機材・ソフト</option>
+            <option>交通費</option>
+            <option>その他</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="addEntry()">追加</button>
+      </div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>日付</th>
-          <th>種別</th>
-          <th>内容</th>
-          <th>カテゴリ</th>
-          <th style="text-align:right">金額</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="table-body"></tbody>
-    </table>
-    <div id="empty-msg" class="empty" style="display:none">取引データがありません。登録してみましょう！</div>
+
+    <div class="table-section">
+      <h2>取引一覧</h2>
+      <div class="filter-row">
+        <label>月で絞込:</label>
+        <input type="month" id="filter-month">
+        <button class="btn btn-primary" style="padding:7px 14px;font-size:0.8rem" onclick="renderTable()">絞込</button>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:0.8rem" onclick="clearFilter()">全表示</button>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:0.8rem;margin-left:auto" onclick="exportCSV()">CSVダウンロード</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>日付</th><th>種別</th><th>内容</th><th>カテゴリ</th>
+            <th style="text-align:right">金額</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div id="empty-msg" class="empty" style="display:none">取引データがありません。登録してみましょう！</div>
+    </div>
+
   </div>
 
-</div>
+  <!-- ======== 年間レポート ======== -->
+  <div id="tab-annual" class="section">
+
+    <div class="form-section" style="margin-bottom:16px">
+      <div class="filter-row" style="margin:0">
+        <label>対象年:</label>
+        <select id="annual-year" onchange="renderAnnual()"></select>
+      </div>
+    </div>
+
+    <div class="summary" id="annual-summary"></div>
+
+    <div class="table-section">
+      <h2>月別収支サマリー</h2>
+      <table class="monthly-table">
+        <thead>
+          <tr>
+            <th>月</th><th>収入</th><th>支出</th><th>純利益</th><th>利益率</th>
+          </tr>
+        </thead>
+        <tbody id="annual-body"></tbody>
+        <tfoot id="annual-foot"></tfoot>
+      </table>
+    </div>
+
+  </div>
+
+</div><!-- /container -->
 
 <script>
-  // 初期データ
   let entries = JSON.parse(localStorage.getItem('fukugyou') || '[]');
+  let barChartInst = null;
+  let pieChartInst = null;
 
-  // 今日の日付をデフォルト設定
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
 
-  function save() {
-    localStorage.setItem('fukugyou', JSON.stringify(entries));
+  // ---- ユーティリティ ----
+  function save() { localStorage.setItem('fukugyou', JSON.stringify(entries)); }
+  function fmt(n) { return '¥' + Number(n).toLocaleString(); }
+  function pct(a, b) { return b === 0 ? '-' : Math.round(a / b * 100) + '%'; }
+
+  function getYears() {
+    const ys = [...new Set(entries.map(e => e.date.slice(0,4)))];
+    const cy = String(new Date().getFullYear());
+    if (!ys.includes(cy)) ys.push(cy);
+    return ys.sort((a,b) => b-a);
   }
 
-  function fmt(n) {
-    return '¥' + Number(n).toLocaleString();
+  function populateYearSelects() {
+    const years = getYears();
+    ['bar-year','annual-year'].forEach(id => {
+      const sel = document.getElementById(id);
+      const cur = sel.value;
+      sel.innerHTML = years.map(y => `<option value="${y}">${y}年</option>`).join('');
+      if (cur && years.includes(cur)) sel.value = cur;
+    });
   }
 
+  // ---- タブ切替 ----
+  function switchTab(name) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+    if (name === 'dashboard') renderCharts();
+    if (name === 'annual') renderAnnual();
+  }
+
+  // ---- 登録 ----
   function addEntry() {
     const type     = document.getElementById('f-type').value;
     const date     = document.getElementById('f-date').value;
     const desc     = document.getElementById('f-desc').value.trim();
     const amount   = parseInt(document.getElementById('f-amount').value);
     const category = document.getElementById('f-category').value;
-
-    if (!date || !desc || !amount || amount <= 0) {
-      alert('日付・内容・金額をすべて入力してください');
-      return;
-    }
-
+    if (!date || !desc || !amount || amount <= 0) { alert('日付・内容・金額を入力してください'); return; }
     entries.push({ id: Date.now(), type, date, desc, amount, category });
     entries.sort((a,b) => b.date.localeCompare(a.date));
     save();
     document.getElementById('f-desc').value = '';
     document.getElementById('f-amount').value = '';
     renderTable();
-    updateSummary();
+    updateMonthSummary();
+    populateYearSelects();
   }
 
   function deleteEntry(id) {
@@ -226,68 +320,187 @@
     entries = entries.filter(e => e.id !== id);
     save();
     renderTable();
-    updateSummary();
+    updateMonthSummary();
   }
 
-  function getFilterMonth() {
-    return document.getElementById('filter-month').value; // 'YYYY-MM' or ''
+  // ---- テーブル ----
+  function filteredEntries() {
+    const m = document.getElementById('filter-month').value;
+    return m ? entries.filter(e => e.date.startsWith(m)) : entries;
   }
-
   function clearFilter() {
     document.getElementById('filter-month').value = '';
     renderTable();
   }
-
-  function filteredEntries() {
-    const m = getFilterMonth();
-    if (!m) return entries;
-    return entries.filter(e => e.date.startsWith(m));
-  }
-
   function renderTable() {
     const tbody = document.getElementById('table-body');
     const data  = filteredEntries();
     tbody.innerHTML = '';
     document.getElementById('empty-msg').style.display = data.length ? 'none' : 'block';
-
     data.forEach(e => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${e.date}</td>
-        <td><span class="badge ${e.type}">${e.type === 'income' ? '収入' : '支出'}</span></td>
+        <td><span class="badge ${e.type}">${e.type==='income'?'収入':'支出'}</span></td>
         <td>${e.desc}</td>
         <td>${e.category}</td>
         <td style="text-align:right;font-weight:bold;color:${e.type==='income'?'#4caf50':'#f44336'}">${fmt(e.amount)}</td>
-        <td><button class="btn btn-danger" onclick="deleteEntry(${e.id})">削除</button></td>
+        <td><button class="btn-danger" onclick="deleteEntry(${e.id})">削除</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---- 今月サマリー ----
+  function updateMonthSummary() {
+    const now = new Date();
+    const m = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const md = entries.filter(e => e.date.startsWith(m));
+    const income  = md.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+    const expense = md.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+    const profit  = income - expense;
+    const rate    = income > 0 ? Math.round(profit/income*100) : null;
+
+    document.getElementById('lbl-month').textContent = `${now.getMonth()+1}月の収入`;
+    document.getElementById('m-income').textContent  = fmt(income);
+    document.getElementById('m-expense').textContent = fmt(expense);
+    document.getElementById('m-profit').textContent  = fmt(profit);
+    document.getElementById('m-profit').style.color  = profit >= 0 ? '#667eea' : '#f44336';
+    document.getElementById('m-rate').textContent    = rate !== null ? rate + '%' : '-%';
+
+    const prevM = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    const pm = `${prevM.getFullYear()}-${String(prevM.getMonth()+1).padStart(2,'0')}`;
+    const prevIncome = entries.filter(e=>e.date.startsWith(pm)&&e.type==='income').reduce((s,e)=>s+e.amount,0);
+    const diff = income - prevIncome;
+    const sub  = prevIncome > 0 ? (diff >= 0 ? `前月比 +${fmt(diff)}` : `前月比 ${fmt(diff)}`) : '';
+    document.getElementById('m-income-sub').textContent = sub;
+  }
+
+  // ---- グラフ ----
+  function renderCharts() {
+    populateYearSelects();
+    const year = document.getElementById('bar-year').value;
+    const months = Array.from({length:12}, (_,i) => `${year}-${String(i+1).padStart(2,'0')}`);
+    const incomes  = months.map(m => entries.filter(e=>e.date.startsWith(m)&&e.type==='income').reduce((s,e)=>s+e.amount,0));
+    const expenses = months.map(m => entries.filter(e=>e.date.startsWith(m)&&e.type==='expense').reduce((s,e)=>s+e.amount,0));
+
+    // 棒グラフ
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    if (barChartInst) barChartInst.destroy();
+    barChartInst = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: months.map((_,i) => `${i+1}月`),
+        datasets: [
+          { label: '収入', data: incomes,  backgroundColor: 'rgba(76,175,80,0.7)',  borderRadius: 4 },
+          { label: '支出', data: expenses, backgroundColor: 'rgba(244,67,54,0.65)', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { font: { size: 11 } } } },
+        scales: {
+          y: { ticks: { callback: v => '¥' + v.toLocaleString(), font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+
+    // 経費ドーナツ
+    const expEntries = entries.filter(e => e.type==='expense' && e.date.startsWith(year));
+    const catMap = {};
+    expEntries.forEach(e => { catMap[e.category] = (catMap[e.category]||0) + e.amount; });
+    const labels = Object.keys(catMap);
+    const values = Object.values(catMap);
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    if (pieChartInst) pieChartInst.destroy();
+    const hasData = values.length > 0;
+    document.getElementById('pie-empty').style.display = hasData ? 'none' : 'block';
+    document.getElementById('pieChart').style.display  = hasData ? 'block' : 'none';
+    if (hasData) {
+      pieChartInst = new Chart(pieCtx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{ data: values, backgroundColor: ['#667eea','#f44336','#ff9800','#4caf50','#00bcd4','#9c27b0'], hoverOffset: 6 }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
+            tooltip: { callbacks: { label: ctx => `${ctx.label}: ¥${ctx.raw.toLocaleString()}` } }
+          }
+        }
+      });
+    }
+  }
+
+  // ---- 年間レポート ----
+  function renderAnnual() {
+    populateYearSelects();
+    const year = document.getElementById('annual-year').value;
+    const months = Array.from({length:12}, (_,i) => `${year}-${String(i+1).padStart(2,'0')}`);
+
+    let totalIncome = 0, totalExpense = 0;
+    const tbody = document.getElementById('annual-body');
+    tbody.innerHTML = '';
+
+    months.forEach((m, i) => {
+      const md = entries.filter(e => e.date.startsWith(m));
+      const inc = md.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+      const exp = md.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+      const pro = inc - exp;
+      totalIncome += inc; totalExpense += exp;
+      if (inc === 0 && exp === 0) return;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}月</td>
+        <td>${fmt(inc)}</td>
+        <td>${fmt(exp)}</td>
+        <td class="${pro>=0?'profit-pos':'profit-neg'}">${fmt(pro)}</td>
+        <td>${pct(pro, inc)}</td>
       `;
       tbody.appendChild(tr);
     });
 
-    updateSummary(data);
+    const totalProfit = totalIncome - totalExpense;
+    const tfoot = document.getElementById('annual-foot');
+    tfoot.innerHTML = `
+      <tr style="background:#f7f8fc;font-weight:bold">
+        <td>合計</td>
+        <td>${fmt(totalIncome)}</td>
+        <td>${fmt(totalExpense)}</td>
+        <td class="${totalProfit>=0?'profit-pos':'profit-neg'}">${fmt(totalProfit)}</td>
+        <td>${pct(totalProfit, totalIncome)}</td>
+      </tr>
+    `;
+
+    // 年間サマリーカード
+    const src20 = Math.round(totalIncome * 0.2021);
+    document.getElementById('annual-summary').innerHTML = `
+      <div class="card income"><div class="label">年間収入</div><div class="amount">${fmt(totalIncome)}</div></div>
+      <div class="card expense"><div class="label">年間支出</div><div class="amount">${fmt(totalExpense)}</div></div>
+      <div class="card profit"><div class="label">年間純利益</div><div class="amount" style="color:${totalProfit>=0?'#667eea':'#f44336'}">${fmt(totalProfit)}</div></div>
+      <div class="card rate"><div class="label">源泉徴収目安(20.21%)</div><div class="amount">${fmt(src20)}</div><div class="sub">確定申告の参考値</div></div>
+    `;
   }
 
-  function updateSummary(data) {
-    // サマリーは今月固定
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const monthData = entries.filter(e => e.date.startsWith(thisMonth));
-
-    const income  = monthData.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
-    const expense = monthData.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
-    const profit  = income - expense;
-
-    document.getElementById('total-income').textContent  = fmt(income);
-    document.getElementById('total-expense').textContent = fmt(expense);
-    document.getElementById('total-profit').textContent  = fmt(profit);
-    document.getElementById('total-profit').style.color  = profit >= 0 ? '#667eea' : '#f44336';
-
-    const label = `${now.getMonth()+1}月の収入`;
-    document.getElementById('summary-month-label').textContent = label;
+  // ---- CSV書き出し ----
+  function exportCSV() {
+    const data = filteredEntries();
+    if (!data.length) { alert('データがありません'); return; }
+    const header = '日付,種別,内容,カテゴリ,金額\n';
+    const rows = data.map(e => `${e.date},${e.type==='income'?'収入':'支出'},${e.desc},${e.category},${e.amount}`).join('\n');
+    const blob = new Blob(['\uFEFF'+header+rows], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = '副業収支.csv'; a.click();
   }
 
-  // 初期描画
+  // ---- 初期化 ----
+  populateYearSelects();
+  updateMonthSummary();
   renderTable();
-  updateSummary();
+  renderCharts();
 </script>
 </body>
 </html>
