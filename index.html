@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>副業管理ツール</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+
+  header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 20px 32px;
+    font-size: 1.4rem;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+  }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+  /* サマリーカード */
+  .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .card {
+    flex: 1; min-width: 180px;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    text-align: center;
+  }
+  .card .label { font-size: 0.8rem; color: #888; margin-bottom: 8px; }
+  .card .amount { font-size: 1.6rem; font-weight: bold; }
+  .card.income .amount { color: #4caf50; }
+  .card.expense .amount { color: #f44336; }
+  .card.profit .amount { color: #667eea; }
+
+  /* フォーム */
+  .form-section {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+  }
+  .form-section h2 { font-size: 1rem; margin-bottom: 16px; color: #555; }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 130px; }
+  .form-group label { font-size: 0.75rem; color: #888; }
+  .form-group input, .form-group select {
+    padding: 9px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: #667eea; }
+
+  .btn {
+    padding: 9px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: bold;
+    transition: opacity 0.2s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: #667eea; color: white; }
+  .btn-danger  { background: #f44336; color: white; padding: 6px 14px; font-size: 0.8rem; }
+
+  /* フィルター */
+  .filter-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-row label { font-size: 0.8rem; color: #888; }
+  .filter-row select, .filter-row input {
+    padding: 7px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.85rem; outline: none;
+  }
+
+  /* テーブル */
+  .table-section {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .table-section h2 { font-size: 1rem; margin-bottom: 16px; color: #555; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: #f7f8fc; padding: 10px 12px; text-align: left; color: #888; font-weight: 600; border-bottom: 2px solid #eee; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbff; }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold;
+  }
+  .badge.income  { background: #e8f5e9; color: #4caf50; }
+  .badge.expense { background: #fce8e8; color: #f44336; }
+  .empty { text-align: center; color: #bbb; padding: 40px; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>💼 副業管理ツール</header>
+
+<div class="container">
+
+  <!-- サマリー -->
+  <div class="summary">
+    <div class="card income">
+      <div class="label" id="summary-month-label">今月の収入</div>
+      <div class="amount" id="total-income">¥0</div>
+    </div>
+    <div class="card expense">
+      <div class="label">今月の支出</div>
+      <div class="amount" id="total-expense">¥0</div>
+    </div>
+    <div class="card profit">
+      <div class="label">今月の純利益</div>
+      <div class="amount" id="total-profit">¥0</div>
+    </div>
+  </div>
+
+  <!-- 登録フォーム -->
+  <div class="form-section">
+    <h2>取引を登録</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>種別</label>
+        <select id="f-type">
+          <option value="income">収入</option>
+          <option value="expense">支出</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>日付</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>内容・案件名</label>
+        <input type="text" id="f-desc" placeholder="例: Webデザイン案件A">
+      </div>
+      <div class="form-group">
+        <label>金額（円）</label>
+        <input type="number" id="f-amount" placeholder="50000" min="0">
+      </div>
+      <div class="form-group">
+        <label>カテゴリ</label>
+        <select id="f-category">
+          <option>案件収入</option>
+          <option>コンサル</option>
+          <option>通信費</option>
+          <option>機材・ソフト</option>
+          <option>交通費</option>
+          <option>その他</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="addEntry()">追加</button>
+    </div>
+  </div>
+
+  <!-- 一覧 -->
+  <div class="table-section">
+    <h2>取引一覧</h2>
+    <div class="filter-row">
+      <label>月で絞込:</label>
+      <input type="month" id="filter-month">
+      <button class="btn btn-primary" style="padding:7px 16px;font-size:0.82rem" onclick="renderTable()">絞込</button>
+      <button class="btn" style="background:#eee;padding:7px 16px;font-size:0.82rem" onclick="clearFilter()">全表示</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>種別</th>
+          <th>内容</th>
+          <th>カテゴリ</th>
+          <th style="text-align:right">金額</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+    <div id="empty-msg" class="empty" style="display:none">取引データがありません。登録してみましょう！</div>
+  </div>
+
+</div>
+
+<script>
+  // 初期データ
+  let entries = JSON.parse(localStorage.getItem('fukugyou') || '[]');
+
+  // 今日の日付をデフォルト設定
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+
+  function save() {
+    localStorage.setItem('fukugyou', JSON.stringify(entries));
+  }
+
+  function fmt(n) {
+    return '¥' + Number(n).toLocaleString();
+  }
+
+  function addEntry() {
+    const type     = document.getElementById('f-type').value;
+    const date     = document.getElementById('f-date').value;
+    const desc     = document.getElementById('f-desc').value.trim();
+    const amount   = parseInt(document.getElementById('f-amount').value);
+    const category = document.getElementById('f-category').value;
+
+    if (!date || !desc || !amount || amount <= 0) {
+      alert('日付・内容・金額をすべて入力してください');
+      return;
+    }
+
+    entries.push({ id: Date.now(), type, date, desc, amount, category });
+    entries.sort((a,b) => b.date.localeCompare(a.date));
+    save();
+    document.getElementById('f-desc').value = '';
+    document.getElementById('f-amount').value = '';
+    renderTable();
+    updateSummary();
+  }
+
+  function deleteEntry(id) {
+    if (!confirm('削除しますか？')) return;
+    entries = entries.filter(e => e.id !== id);
+    save();
+    renderTable();
+    updateSummary();
+  }
+
+  function getFilterMonth() {
+    return document.getElementById('filter-month').value; // 'YYYY-MM' or ''
+  }
+
+  function clearFilter() {
+    document.getElementById('filter-month').value = '';
+    renderTable();
+  }
+
+  function filteredEntries() {
+    const m = getFilterMonth();
+    if (!m) return entries;
+    return entries.filter(e => e.date.startsWith(m));
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('table-body');
+    const data  = filteredEntries();
+    tbody.innerHTML = '';
+    document.getElementById('empty-msg').style.display = data.length ? 'none' : 'block';
+
+    data.forEach(e => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${e.date}</td>
+        <td><span class="badge ${e.type}">${e.type === 'income' ? '収入' : '支出'}</span></td>
+        <td>${e.desc}</td>
+        <td>${e.category}</td>
+        <td style="text-align:right;font-weight:bold;color:${e.type==='income'?'#4caf50':'#f44336'}">${fmt(e.amount)}</td>
+        <td><button class="btn btn-danger" onclick="deleteEntry(${e.id})">削除</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    updateSummary(data);
+  }
+
+  function updateSummary(data) {
+    // サマリーは今月固定
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const monthData = entries.filter(e => e.date.startsWith(thisMonth));
+
+    const income  = monthData.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount,0);
+    const expense = monthData.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0);
+    const profit  = income - expense;
+
+    document.getElementById('total-income').textContent  = fmt(income);
+    document.getElementById('total-expense').textContent = fmt(expense);
+    document.getElementById('total-profit').textContent  = fmt(profit);
+    document.getElementById('total-profit').style.color  = profit >= 0 ? '#667eea' : '#f44336';
+
+    const label = `${now.getMonth()+1}月の収入`;
+    document.getElementById('summary-month-label').textContent = label;
+  }
+
+  // 初期描画
+  renderTable();
+  updateSummary();
+</script>
+</body>
+</html>
