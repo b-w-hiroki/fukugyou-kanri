@@ -339,14 +339,26 @@
     document.getElementById('empty-msg').style.display = data.length ? 'none' : 'block';
     data.forEach(e => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${e.date}</td>
-        <td><span class="badge ${e.type}">${e.type==='income'?'収入':'支出'}</span></td>
-        <td>${e.desc}</td>
-        <td>${e.category}</td>
-        <td style="text-align:right;font-weight:bold;color:${e.type==='income'?'#4caf50':'#f44336'}">${fmt(e.amount)}</td>
-        <td><button class="btn-danger" onclick="deleteEntry(${e.id})">削除</button></td>
-      `;
+      const date = tr.insertCell();
+      date.textContent = e.date;
+      const type = tr.insertCell();
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (e.type === 'income' ? 'income' : 'expense');
+      badge.textContent = e.type === 'income' ? '収入' : '支出';
+      type.appendChild(badge);
+      tr.insertCell().textContent = e.desc;
+      tr.insertCell().textContent = e.category;
+      const amount = tr.insertCell();
+      amount.style.textAlign = 'right';
+      amount.style.fontWeight = 'bold';
+      amount.style.color = e.type === 'income' ? '#4caf50' : '#f44336';
+      amount.textContent = fmt(e.amount);
+      const action = tr.insertCell();
+      const button = document.createElement('button');
+      button.className = 'btn-danger';
+      button.textContent = '削除';
+      button.addEventListener('click', () => deleteEntry(e.id));
+      action.appendChild(button);
       tbody.appendChild(tr);
     });
   }
@@ -486,12 +498,19 @@
   }
 
   // ---- CSV書き出し ----
+  function csvCell(value) {
+    let text = String(value);
+    // Spreadsheet applications may interpret these prefixes as formulas.
+    if (/^[\s\u0000-\u001f]*[=+\-@]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
   function exportCSV() {
     const data = filteredEntries();
     if (!data.length) { alert('データがありません'); return; }
-    const header = '日付,種別,内容,カテゴリ,金額\n';
-    const rows = data.map(e => `${e.date},${e.type==='income'?'収入':'支出'},${e.desc},${e.category},${e.amount}`).join('\n');
-    const blob = new Blob(['\uFEFF'+header+rows], { type: 'text/csv;charset=utf-8;' });
+    const header = ['日付','種別','内容','カテゴリ','金額'];
+    const rows = data.map(e => [e.date,e.type==='income'?'収入':'支出',e.desc,e.category,e.amount]);
+    const csv = [header, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = '副業収支.csv'; a.click();
   }
