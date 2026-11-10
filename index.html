@@ -433,7 +433,9 @@
     const amount   = Number(document.getElementById('f-amount').value);
     const category = document.getElementById('f-category').value;
     if (!date || !desc || !Number.isSafeInteger(amount) || amount <= 0) { alert('日付・内容・金額を入力してください'); return; }
-    const id = entries.reduce((next, e) => Math.max(next, e.id + 1), Date.now());
+    const usedIds = new Set(entries.map(e => e.id));
+    let id = Date.now();
+    while (usedIds.has(id)) id = id === Number.MAX_SAFE_INTEGER ? 0 : id + 1;
     if (!save([...entries, { id, type, date, desc, amount, category }])) return;
     document.getElementById('f-desc').value = '';
     document.getElementById('f-amount').value = '';

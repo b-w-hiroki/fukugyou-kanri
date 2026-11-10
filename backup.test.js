@@ -101,3 +101,16 @@ test('annual summary no longer treats a flat percentage of revenue as withholdin
   assert.ok(!html.includes('totalIncome * 0.2021'));
   assert.ok(html.includes('源泉徴収・所得税はこの集計から算出しません'));
 });
+
+
+test('maximum imported ID does not block future transactions and timestamp collisions are safe', () => {
+  for (const existingId of [Number.MAX_SAFE_INTEGER, 1]) {
+    const h = setup({ raw: JSON.stringify([item(existingId)]) });
+    h.ctx.Date = class extends Date { static now() { return 1; } };
+    for (const [id, value] of Object.entries({ 'f-date': '2026-04-06', 'f-desc': 'next', 'f-amount': '100', 'f-type': 'income', 'f-category': 'その他' })) h.node(id).value = value;
+    h.ctx.addEntry();
+    assert.equal(h.entries().length, 2);
+    assert.equal(new Set(h.entries().map(e => e.id)).size, 2);
+    assert.ok(h.entries().every(e => Number.isSafeInteger(e.id)));
+  }
+});
