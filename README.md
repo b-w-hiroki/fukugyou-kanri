@@ -21,6 +21,7 @@
 セキュリティ・バックアップ回帰テストがあります。
 
 - `security.test.js` — Node.js のテストランナーで実行するテスト（表示時の文字列の literal 扱い、CSV のクォート／数式無害化など）
+- `backup.test.js` — JSON形式・復元・保存失敗の回帰テスト
 - `browser.test.js` — Playwright（Chromium）で実際にブラウザ上で確認するテスト
 
 CI: `.github/workflows/security-tests.yml` が `push` / `pull_request` で Node.js 22 を使って両テストを実行します。
@@ -28,12 +29,13 @@ CI: `.github/workflows/security-tests.yml` が `push` / `pull_request` で Node.
 ローカル実行の例（CI の手順に基づく）:
 
 ```sh
-node --test security.test.js backup.test.js
-npm install --no-save playwright
-npx playwright install --with-deps chromium
-node browser.test.js
+npm ci --ignore-scripts --no-audit --no-fund
+npm test
+./node_modules/.bin/playwright install --with-deps chromium
+npm run test:browser
 ```
 
+CIは Ubuntu 24.04、Node.js 22 を使用し、Playwright 1.65.0 と依存関係を `package-lock.json` で固定しています。Node.js 22 はパッチ更新を受け取り、OSイメージも更新されるため、完全に同一の実行環境を保証するものではありません。依存パッケージはテスト専用で、アプリを開くためには不要です。`npm ci` はlockfileと一致する依存関係のみを導入し、install scriptsと自動auditを実行しません。Chromiumは固定したPlaywrightのCLIから明示的に導入します（`--with-deps` はOSライブラリを導入するため、ローカルでは管理者権限が必要な場合があります）。更新時はPlaywrightのバージョンとlockfileを同時に変更し、Node回帰テストとChromiumテストを両方実行してください。
 
 ## バックアップと復元
 
