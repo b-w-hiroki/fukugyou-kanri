@@ -206,6 +206,17 @@
       </div>
     </div>
 
+    <div class="form-section">
+      <h2>バックアップ・復元</h2>
+      <div class="filter-row">
+        <button class="btn btn-ghost" id="export-backup" onclick="exportBackup()">全件をJSONバックアップ</button>
+        <label class="btn btn-ghost" for="backup-file">JSONから復元</label>
+        <input id="backup-file" type="file" accept=".json,application/json" onchange="importBackupFile(this)" aria-label="JSONバックアップから復元" style="max-width:100%">
+      </div>
+      <p style="font-size:0.8rem;line-height:1.7">CSVは表計算用、JSONは全件の復元用です（10MiBまで）。復元は現在の全件を置き換えます。先にバックアップし、別端末で確認してから元データを削除してください。内容・案件名を含むため安全な場所に保管してください。</p>
+      <p id="backup-status" role="status" aria-live="polite" style="font-size:0.8rem;line-height:1.7;margin-top:8px"></p>
+    </div>
+
     <div class="table-section">
       <h2>取引一覧</h2>
       <div class="filter-row">
@@ -259,14 +270,131 @@
 </div><!-- /container -->
 
 <script>
-  let entries = JSON.parse(localStorage.getItem('fukugyou') || '[]');
+  const BACKUP_MAX_BYTES = 10 * 1024 * 1024;
+  let storageBlocked = false;
+  let storedRaw = null;
+  let restorePending = false;
+
+  function normalizeEntries(value) {
+    if (!Array.isArray(value) || value.length > 100000) throw new Error('取引の形式または件数が不正です');
+    const ids = new Set();
+    let total = 0;
+    return value.map(e => {
+      if (!e || typeof e !== 'object' || Array.isArray(e) ||
+          !Number.isSafeInteger(e.id) || e.id < 0 || ids.has(e.id) ||
+          !['income', 'expense'].includes(e.type) ||
+          typeof e.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.date) ||
+          e.date < '0001-01-01' || Number.isNaN(Date.parse(e.date)) ||
+          new Date(e.date).toISOString().slice(0, 10) !== e.date ||
+          typeof e.desc !== 'string' || !e.desc.trim() || e.desc.length > 10000 ||
+          typeof e.category !== 'string' || e.category.length > 1000 ||
+          !Number.isSafeInteger(e.amount) || e.amount <= 0) {
+        throw new Error('取引の日付・金額・IDなどが不正です');
+      }
+      total += e.amount;
+      if (!Number.isSafeInteger(total)) throw new Error('金額の合計が安全に計算できる範囲を超えています');
+      ids.add(e.id);
+      return { id: e.id, type: e.type, date: e.date, desc: e.desc, amount: e.amount, category: e.category };
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  function loadEntries() {
+    try {
+      storedRaw = localStorage.getItem('fukugyou');
+      return normalizeEntries(JSON.parse(storedRaw || '[]'));
+    } catch {
+      storageBlocked = true;
+      return [];
+    }
+  }
+
+  function setBackupStatus(message) {
+    document.getElementById('backup-status').textContent = message;
+  }
+
+  function downloadJSON(text, filename) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportBackup() {
+    if (storageBlocked) {
+      if (storedRaw === null) { setBackupStatus('保存データを読み出せません。ブラウザの保存設定を確認してください。'); return; }
+      downloadJSON(storedRaw, 'fukugyou-recovery.json');
+      setBackupStatus('読めなかった元データを退避しました。このファイルは通常の復元形式とは異なります。');
+      return;
+    }
+    const text = JSON.stringify({ app: 'fukugyou-kanri', version: 1, exportedAt: new Date().toISOString(), entries }, null, 2);
+    if (new Blob([text]).size > BACKUP_MAX_BYTES) { setBackupStatus('全件バックアップが復元上限の10MiBを超えています。データは変更していません。'); return; }
+    downloadJSON(text, 'fukugyou-backup-' + new Date().toISOString().slice(0, 10) + '.json');
+    setBackupStatus('全 ' + entries.length + ' 件のバックアップを作成しました。保存先でファイルを確認してください。');
+  }
+
+  function restoreBackupText(text) {
+    try {
+      if (typeof text !== 'string' || new Blob([text]).size > BACKUP_MAX_BYTES) throw new Error('復元ファイルは10MiB以下にしてください');
+      const packet = JSON.parse(text);
+      if (!packet || packet.app !== 'fukugyou-kanri' || packet.version !== 1) throw new Error('このアプリのバージョン1バックアップを選んでください');
+      const next = normalizeEntries(packet.entries);
+      if (!confirm('現在の ' + entries.length + ' 件をバックアップの ' + next.length + ' 件で置き換えます。追加・統合ではありません。先に現在のデータをバックアップしましたか？')) {
+        setBackupStatus('復元をキャンセルしました。現在のデータは変更していません。');
+        return false;
+      }
+      // localStorage.setItem is atomic. Commit in-memory state only after it succeeds.
+      localStorage.setItem('fukugyou', JSON.stringify(next));
+      entries = next;
+      storageBlocked = false;
+      storedRaw = JSON.stringify(next);
+    } catch {
+      setBackupStatus('復元できませんでした。ファイルの形式・日付・金額・10MiB上限とブラウザの空き容量を確認してください。現在のデータは変更していません。');
+      return false;
+    }
+    document.getElementById('filter-month').value = '';
+    renderTable(); updateMonthSummary(); populateYearSelects(); renderAnnual();
+    if (typeof Chart !== 'undefined') renderCharts();
+    setBackupStatus(entries.length + ' 件を復元しました。日付・内容・金額を確認してください。');
+    return true;
+  }
+
+  async function importBackupFile(input) {
+    const file = input.files[0];
+    input.value = '';
+    if (!file || restorePending) return;
+    restorePending = true;
+    setBackupStatus('バックアップを読み込んでいます…');
+    try {
+      if (file.size > BACKUP_MAX_BYTES) { setBackupStatus('復元ファイルは10MiB以下にしてください。データは変更していません。'); return; }
+      restoreBackupText(await file.text());
+    } catch {
+      setBackupStatus('ファイルを読み込めませんでした。現在のデータは変更していません。');
+    } finally {
+      restorePending = false;
+    }
+  }
+
+  let entries = loadEntries();
   let barChartInst = null;
   let pieChartInst = null;
 
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
 
   // ---- ユーティリティ ----
-  function save() { localStorage.setItem('fukugyou', JSON.stringify(entries)); }
+  function save(next) {
+    if (storageBlocked) { alert('保存データを読み込めないため変更を止めています。先に元データを退避してください。'); return false; }
+    try {
+      const validated = normalizeEntries(next);
+      localStorage.setItem('fukugyou', JSON.stringify(validated));
+      entries = validated;
+      return true;
+    } catch {
+      alert('保存できませんでした。入力内容とブラウザの空き容量を確認してください。現在のデータは変更していません。');
+      return false;
+    }
+  }
   function fmt(n) { return '¥' + Number(n).toLocaleString(); }
   function pct(a, b) { return b === 0 ? '-' : Math.round(a / b * 100) + '%'; }
 
@@ -302,12 +430,13 @@
     const type     = document.getElementById('f-type').value;
     const date     = document.getElementById('f-date').value;
     const desc     = document.getElementById('f-desc').value.trim();
-    const amount   = parseInt(document.getElementById('f-amount').value);
+    const amount   = Number(document.getElementById('f-amount').value);
     const category = document.getElementById('f-category').value;
-    if (!date || !desc || !amount || amount <= 0) { alert('日付・内容・金額を入力してください'); return; }
-    entries.push({ id: Date.now(), type, date, desc, amount, category });
-    entries.sort((a,b) => b.date.localeCompare(a.date));
-    save();
+    if (!date || !desc || !Number.isSafeInteger(amount) || amount <= 0) { alert('日付・内容・金額を入力してください'); return; }
+    const usedIds = new Set(entries.map(e => e.id));
+    let id = Date.now();
+    while (usedIds.has(id)) id = id === Number.MAX_SAFE_INTEGER ? 0 : id + 1;
+    if (!save([...entries, { id, type, date, desc, amount, category }])) return;
     document.getElementById('f-desc').value = '';
     document.getElementById('f-amount').value = '';
     renderTable();
@@ -317,8 +446,7 @@
 
   function deleteEntry(id) {
     if (!confirm('削除しますか？')) return;
-    entries = entries.filter(e => e.id !== id);
-    save();
+    if (!save(entries.filter(e => e.id !== id))) return;
     renderTable();
     updateMonthSummary();
   }
@@ -420,7 +548,7 @@
 
     // 経費ドーナツ
     const expEntries = entries.filter(e => e.type==='expense' && e.date.startsWith(year));
-    const catMap = {};
+    const catMap = Object.create(null);
     expEntries.forEach(e => { catMap[e.category] = (catMap[e.category]||0) + e.amount; });
     const labels = Object.keys(catMap);
     const values = Object.values(catMap);
@@ -488,12 +616,11 @@
     `;
 
     // 年間サマリーカード
-    const src20 = Math.round(totalIncome * 0.2021);
     document.getElementById('annual-summary').innerHTML = `
       <div class="card income"><div class="label">年間収入</div><div class="amount">${fmt(totalIncome)}</div></div>
       <div class="card expense"><div class="label">年間支出</div><div class="amount">${fmt(totalExpense)}</div></div>
       <div class="card profit"><div class="label">年間純利益</div><div class="amount" style="color:${totalProfit>=0?'#667eea':'#f44336'}">${fmt(totalProfit)}</div></div>
-      <div class="card rate"><div class="label">源泉徴収目安(20.21%)</div><div class="amount">${fmt(src20)}</div><div class="sub">確定申告の参考値</div></div>
+      <div class="card rate"><div class="label">税務の確認</div><div class="amount">未計算</div><div class="sub">源泉徴収・所得税はこの集計から算出しません。対象年と取引の条件を確認してください。</div></div>
     `;
   }
 
@@ -519,7 +646,8 @@
   populateYearSelects();
   updateMonthSummary();
   renderTable();
-  renderCharts();
+  if (typeof Chart !== 'undefined') renderCharts();
+  if (storageBlocked) setBackupStatus('保存データを読み込めませんでした。元データを保持し、追加・削除を止めています。JSONバックアップで退避してから復元してください。');
 </script>
 </body>
 </html>
