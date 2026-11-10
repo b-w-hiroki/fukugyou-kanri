@@ -1,0 +1,13 @@
+{
+  "name": "fukugyou-kanri",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-only side-business tracker; dependencies are for tests only",
+  "scripts": {
+    "test": "node --test security.test.js backup.test.js",
+    "test:browser": "node browser.test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.65.0"
+  }
+}
